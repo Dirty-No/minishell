@@ -39,7 +39,7 @@ main()
 {
 	MY_SHELL='sh'
 	TST_SHELL='bash --posix'
-	INTERACTIVE="off"	
+	INTERACTIVE="off"
 	VERBOSE="off";
 	for arg in $@;
 	do
