@@ -1,4 +1,4 @@
-#!/usr/bin/bash --posix
+#!/bin/bash
 
 cmp_shell()
 {
@@ -11,6 +11,10 @@ cmp_shell()
 	echo "$@" | $TST_SHELL > $TST_OUTFILE 2>&1;
 	TST_RET=$?;
 	
+	if [ "$(uname)" = "Linux" ];then
+		DIFF_COLOR='--color=always'
+	fi
+
 	if [ "$MY_RET" != "$TST_RET" ];then
 		echo "[ERROR]: Return values differs.";
 		printf "\t%s\n" "$MY_RET <- $MY_SHELL $@";
@@ -22,7 +26,9 @@ cmp_shell()
 		echo "[ERROR]: Output differs.";
 		printf "%s                                                          | %s\n" "($MY_SHELL)" "($TST_SHELL)"
 		FUNC_RET=1;
-		diff -y "$MY_OUTFILE" "$TST_OUTFILE" --color=always
+		diff -y "$MY_OUTFILE" "$TST_OUTFILE" $DIFF_COLOR
+	elif [ "$VERBOSE" = on ];then
+		printf '\n$> %s :\n\n%s\n\n$> %s :\n\n%s\n\n----------\n'  "$MY_SHELL"  "$(cat $MY_OUTFILE)" "$TST_SHELL" "$(cat $TST_OUTFILE)"
 	fi
 	rm "$MY_OUTFILE" "$TST_OUTFILE";
 	return $FUNC_RET;
@@ -33,6 +39,24 @@ interactive()
 	while IFS= read -r line; do
 		cmp_shell $line;
 	done
+}
+
+unit_no_arg()
+{
+	cmp_shell 'ls'
+	cmp_shell 'pwd'
+	cmp_shell 'echo'
+	cmp_shell 'uname'
+	cmp_shell 'arch'
+	cmp_shell './executables/no_arg.sh'
+
+}
+
+unit_arg()
+{
+	cmp_shell echo Hello World
+	cmp_shell ls ..
+	cmp_shell uname -a
 }
 
 main()
@@ -53,6 +77,15 @@ main()
 
 	if [ "$INTERACTIVE" = "on" ];then
 		interactive;
+	else
+		for test in "$@";do
+			OUTPUT="$($test)";
+			if [ -z "$OUTPUT" ];then
+				printf '%-15s [OK]\n' "$test:";
+			else
+				printf '%-15s [KO]\n%s\n' "$test:" "$OUTPUT"
+			fi
+		done
 	fi
 }
 

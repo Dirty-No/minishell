@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/bin/bash
 
 #to have no input :
 #printf "" | no_arg.sh 
