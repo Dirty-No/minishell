@@ -165,6 +165,27 @@ unit_echo()
 	cmp_shell 'echo "hello    " "       world" hi hey'
 }
 
+unit_pwd()
+{
+	cmp_shell "pwd"
+	cmp_shell "pwd .."
+	cmp_shell 'mkdir /tmp/my_dir;cd /tmp/my_dir ;mkdir 1;mkdir 1/2; mkdir 1/2/3;cd 1/2/3;pwd; rm -rf ../../../1;pwd;echo $?'
+}
+
+unit_exit()
+{
+	cmp_shell "exit"
+	cmp_shell "exit 53"
+	cmp_shell 'echo "exit 53;" | $0 ;echo $?'
+}
+
+unit_env()
+{
+	cmp_shell 'echo $PATH'
+	cmp_shell 'echo $SHELL'
+	cmp_shell 'echo $0'
+}
+
 main()
 {
 	MY_SHELL='sh'
