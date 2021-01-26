@@ -1,16 +1,14 @@
 #!/bin/bash
 
-
-
 cmp_shell()
 {
 	FUNC_RET=0;
 	MY_OUTFILE=/tmp/my_outfile;
 	TST_OUTFILE=/tmp/tst_outfile;
 	
-	echo "$@" | $MY_SHELL > $MY_OUTFILE 2>&1;
+	echo "$@" | exec -a "$SHELL_TEST_NAME" $MY_SHELL > $MY_OUTFILE 2>&1;
 	MY_RET=$?;
-	echo "$@" | $TST_SHELL > $TST_OUTFILE 2>&1;
+	echo "$@" | exec -a "$SHELL_TEST_NAME" $TST_SHELL > $TST_OUTFILE 2>&1;
 	TST_RET=$?;
 	
 	if [ "$(uname)" = "Linux" ];then
@@ -24,7 +22,7 @@ cmp_shell()
 		FUNC_RET=1;
 	fi
 
-	if ! diff "$MY_OUTFILE" "$TST_OUTFILE" > /dev/null;then							
+	if ! diff "$MY_OUTFILE" "$TST_OUTFILE" > /dev/null;then				   			
 		echo "[ERROR]: Output differs.";
 		printf "%s                                                          | %s\n" "($MY_SHELL)" "($TST_SHELL)"
 		FUNC_RET=1;
@@ -33,12 +31,15 @@ cmp_shell()
 		printf '\n$> %s :\n\n%s\n\n$> %s :\n\n%s\n\n----------\n'  "$MY_SHELL"  "$(cat $MY_OUTFILE)" "$TST_SHELL" "$(cat $TST_OUTFILE)"
 	fi
 	rm "$MY_OUTFILE" "$TST_OUTFILE";
+	if [ $FUNC_RET != 0 ];then
+		RET_VALUE=$FUNC_RET
+	fi
 	return $FUNC_RET;
 }
 
 interactive()
 {
-	while IFS= read -r line; do
+	while IFS= read -e -p '> ' line; do
 		cmp_shell $line;
 	done
 }
@@ -176,24 +177,114 @@ unit_exit()
 {
 	cmp_shell "exit"
 	cmp_shell "exit 53"
-	cmp_shell 'echo "exit 53;" | $0 ;echo $?'
+	cmp_shell '/bin/echo "exit 53;" | $0 ;/bin/echo $?'
 }
 
-unit_env()
+unit_env_vars()
 {
 	cmp_shell 'echo $PATH'
 	cmp_shell 'echo $SHELL'
 	cmp_shell 'echo $0'
 	cmp_shell '/bin/pwd ; echo $?'
 	cmp_shell 'ee ; echo $?'
+	cmp_shell '/bin/echo $$'
+}
+
+unit_env()
+{
+	cmp_shell 'env eee'
+	cmp_shell 'env abc abc'
+}
+
+unit_builtins_no_arg()
+{
+	cmp_shell 'echo'
+	cmp_shell "cd"
+	cmp_shell 'pwd'
+	cmp_shell 'unset'
+	cmp_shell 'exit'
+}
+
+unit_quotes()
+{
+	cmp_shell '/bin/echo "'hi'"'
+	cmp_shell "/bin/echo '"hi"'"
+	cmp_shell "/bin/echo '"'"'"'"'"'"''"'"'"'"'"'"'"
+	cmp_shell "/bin/echo ''''''''''''''''"
+	cmp_shell "/bin/echo "''''''''''''''''" "
+	cmp_shell "/bin/echo \"''''''''''''''''\""
+	cmp_shell "/bin/echo \'hello world\'"
+	cmp_shell '/bin/echo "" "" "" "" " "'
+}
+
+unit_argv_zero()
+{
+	cmp_shell '/bin/echo $0'
+}
+
+unit_semicolons()
+{
+	#cmp_shell ';;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;'
+	#cmp_shell '; ; ; ; ; ;'
+	cmp_shell '/bin/echo a; /bin/echo b; /bin/echo c'
+	cmp_shell '/bin/echo "a;echo b;pwd" '
+	cmp_shell '/bin/echo hello\;echo world'
+	cmp_shell '/bin/echo "hello \;echo world"'
+	cmp_shell '/bin/echo hello;echo ";hello\;;";'
+}
+
+unit_return()
+{
+	cmp_shell 'eee ; /bin/echo $?'
+	cmp_shell '/bin/echo $?'
+}
+
+unit_redirect_replace()
+{
+	TST_DIR=/tmp/shell_test
+	mkdir -p $TST_DIR
+	pushd . > /dev/null
+	cd $TST_DIR
+
+	cmp_shell '/bin/echo hello world > 1; ls ; cat 1'
+	cmp_shell 'printf h> 2; ls ; cat 2'
+	printf "hello\nworld\ngood\nmorning\nworld" > test_file
+	cmp_shell 'rm -f test_output; cat test_file; grep world < test_file > test_output   ; cat test_file'
+	cmp_shell 'rm -f test_output; cat test_file; grep world < test_file > test_output; grep world < test_file > test_output  ; cat test_file'
+	popd > /dev/null
+	rm -rf $TST_DIR
+}
+
+unit_redirect_append()
+{
+	TST_DIR=/tmp/shell_test
+	mkdir -p $TST_DIR
+	pushd . > /dev/null
+	cd $TST_DIR
+
+	cmp_shell '/bin/echo hello world >> 1; ls ; cat 1'
+	cmp_shell 'printf a >> 2; ls ; cat 2'
+	cmp_shell 'printf b > 3; ls >> 3 ; cat 3'
+	cmp_shell 'printf c > 4; ls >> 4 ; printf eee >> 4 ; echo ";" >> 4 ; cat 4'
+	cmp_shell 'printf d > 5; ls >> 5 ; printf eee >> 5 ; echo ";" > 5 ; cat 5'
+
+
+	printf "hello\nworld\ngood\nmorning\nworld" > test_file
+	cmp_shell 'rm -f test_output; cat test_file; grep world < test_file >> test_output   ; cat test_file'
+	printf "hello\nworld\ngood\nmorning\nworld" > test_file
+	cmp_shell 'rm -f test_output; cat test_file; grep world < test_file >> test_output; grep world < test_file > test_output  ; cat test_file'
+	popd > /dev/null
+	rm -rf $TST_DIR
 }
 
 main()
 {
-	MY_SHELL='sh'
+	MY_SHELL='ksh'
 	TST_SHELL='bash --posix'
+	SHELL_TEST_NAME='myshell'
 	INTERACTIVE="off"
 	VERBOSE="off";
+
 	for arg in $@;
 	do
 		if [ "$arg" = '-i' ];then
@@ -210,11 +301,12 @@ main()
 		for test in "$@";do
 			if ! [ "$test" = "-v" ];then
 				OUTPUT="$($test)";
-				if [ -z "$OUTPUT" ];then
+				if [ $? == 0 ] && [ -z "$(echo "$OUTPUT" | grep [ERROR])" ];then
 					printf '%-15s [OK]\n' "$test:";
 				else
-					printf '%-15s [KO]\n%s\n' "$test:" "$OUTPUT"
+					printf '%-15s [KO]\n' "$test:"
 				fi
+				printf "%s" "$OUTPUT"
 			fi
 		done
 	fi
